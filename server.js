@@ -11,8 +11,16 @@ app.use(express.json());
 const server = require("http").createServer(app);
 const wss = new WebSocket.Server({ server });
 
+function heartbeat() {
+  this.isAlive = true;
+}
+
 wss.on("connection", (ws) => {
   console.log("새 클라이언트 연결됨!");
+  
+  // 연결된 클라이언트의 상태 초기화
+  ws.isAlive = true;
+  ws.on('pong', heartbeat);
 
   ws.on("message", (message) => {
     console.log("메시지 수신:", message.toString());
@@ -28,6 +36,21 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     console.log("클라이언트 연결 종료");
   });
+});
+
+// 주기적으로 연결 상태 체크 (30초마다)
+const interval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      return ws.terminate();
+    }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000);
+
+wss.on('close', () => {
+  clearInterval(interval);
 });
 
 server.listen(port, () => {
